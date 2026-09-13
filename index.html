@@ -1,0 +1,1781 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Online Chinese Drag Matching Game</title>
+  <script src="./js/vocabData.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pinyin-pro@3.26.0/dist/index.js"></script>
+  <style>
+    :root {
+      --bg: #f2f9f2;
+      --panel: rgba(255, 255, 255, 0.95);
+      --ink: #263645;
+      --muted: #6b7785;
+      --line: #d9ead9;
+      --green: #4f9d69;
+      --green2: #78c091;
+      --orange: #fb8a3a;
+      --red: #e65d5d;
+      --blue: #4d9dff;
+      --shadow: 0 18px 42px rgba(34, 77, 51, 0.14);
+      --radius: 24px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Trebuchet MS", "Microsoft YaHei", system-ui, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 12% 10%, rgba(251, 138, 58, 0.18), transparent 27%),
+        radial-gradient(circle at 86% 14%, rgba(79, 157, 105, 0.18), transparent 30%),
+        radial-gradient(circle at 78% 88%, rgba(77, 157, 255, 0.14), transparent 28%),
+        var(--bg);
+      padding: 22px;
+    }
+
+    .hidden { display: none !important; }
+
+    .app {
+      width: min(1480px, 100%);
+      min-height: calc(100vh - 44px);
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 410px 1fr;
+      gap: 20px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.94);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .sidebar {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 0 0 4px;
+      font-size: 24px;
+      line-height: 1.15;
+    }
+
+    .badge {
+      width: 52px;
+      height: 52px;
+      display: grid;
+      place-items: center;
+      border-radius: 18px;
+      background: #e9f7ec;
+      font-size: 28px;
+      box-shadow: inset 0 -4px rgba(79, 157, 105, 0.12);
+      flex: 0 0 auto;
+    }
+
+    label {
+      font-size: 15px;
+      font-weight: 900;
+      color: #3e4c58;
+      margin-bottom: 9px;
+      display: block;
+    }
+
+    textarea, input, select {
+      width: 100%;
+      border: 2px solid var(--line);
+      background: #fffefa;
+      border-radius: 18px;
+      padding: 13px 15px;
+      font: inherit;
+      color: var(--ink);
+      outline: none;
+      transition: 0.18s ease;
+    }
+
+    textarea:focus, input:focus, select:focus {
+      border-color: var(--green2);
+      box-shadow: 0 0 0 4px rgba(79, 157, 105, 0.15);
+    }
+
+    textarea {
+      min-height: 310px;
+      resize: vertical;
+      line-height: 1.75;
+      font-size: 16px;
+      white-space: pre;
+      overflow-wrap: normal;
+      overflow-x: auto;
+    }
+
+    textarea::placeholder { color: #aab4ad; opacity: 1; }
+
+    .button-row, .button-row-2 {
+      display: grid;
+      gap: 10px;
+    }
+    .button-row { grid-template-columns: 1fr 1fr; }
+    .button-row-2 { grid-template-columns: 1fr 1fr; }
+
+    button {
+      border: 0;
+      border-radius: 17px;
+      padding: 12px 14px;
+      font: inherit;
+      font-weight: 900;
+      color: white;
+      cursor: pointer;
+      transition: transform 0.14s ease, filter 0.14s ease;
+      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
+      white-space: nowrap;
+    }
+    button:hover { transform: translateY(-1px); filter: brightness(1.03); }
+    button:active { transform: translateY(1px); }
+    button:disabled { cursor: not-allowed; opacity: 0.7; transform: none; }
+
+    .btn-green { background: linear-gradient(135deg, #78c091, #4f9d69); }
+    .btn-orange { background: linear-gradient(135deg, #ffb15f, #fb8a3a); }
+    .btn-blue { background: linear-gradient(135deg, #76bdff, #4d9dff); }
+    .btn-gray { background: linear-gradient(135deg, #9aa8b4, #687887); }
+    .btn-red { background: linear-gradient(135deg, #ff8b8b, #e65d5d); }
+
+    .main {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 16px;
+      min-width: 0;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) minmax(230px, 1fr) auto;
+      gap: 12px;
+      align-items: end;
+      padding: 18px;
+    }
+
+    .top-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .preview-card {
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .section-head {
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      background: linear-gradient(90deg, #e9f7ec, #ffffff);
+      border-bottom: 2px solid #e5f2e6;
+    }
+
+    .section-head h2 { margin: 0; font-size: 18px; }
+
+    .pill {
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: #fff2e8;
+      color: #c05e1f;
+      font-size: 13px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .preview-shell {
+      flex: 1;
+      overflow: auto;
+      padding: 18px;
+      background: rgba(239, 246, 238, 0.86);
+    }
+
+    .game-board {
+      min-height: 100%;
+      background: white;
+      border-radius: 20px;
+      padding: 26px;
+      box-shadow: 0 10px 26px rgba(0,0,0,0.08);
+    }
+
+    .game-title {
+      text-align: center;
+      margin: 0;
+      font-size: clamp(24px, 3vw, 38px);
+      line-height: 1.15;
+      color: #274536;
+    }
+
+    .game-subtitle {
+      text-align: center;
+      color: var(--muted);
+      margin: 8px auto 20px;
+      font-weight: 700;
+    }
+
+    .statusbar {
+      display: grid;
+      grid-template-columns: repeat(3, auto);
+      justify-content: center;
+      gap: 12px;
+      margin: 0 0 18px;
+    }
+
+    .status-item {
+      border: 2px solid #e0eedf;
+      background: #f8fff8;
+      border-radius: 16px;
+      padding: 9px 14px;
+      font-weight: 900;
+      color: #395547;
+    }
+
+    .student-actions {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin: 0 0 20px;
+    }
+
+    .fusion-layout {
+      display: grid;
+      grid-template-columns: minmax(280px, 1fr) minmax(280px, 1fr);
+      gap: 22px;
+      align-items: stretch;
+    }
+
+    .target-panel, .drag-panel {
+      border-radius: 22px;
+      border: 2px solid #e0eedf;
+      background: #fbfffb;
+      padding: 16px;
+      min-height: 340px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .drag-panel {
+      background: linear-gradient(180deg, #eef7ff 0%, #f7fbff 100%);
+    }
+
+    .panel-title {
+      margin: 0 0 14px;
+      font-size: 17px;
+      font-weight: 900;
+      color: #385645;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .target-list {
+      display: grid;
+      gap: 9px;
+      flex: 1 1 auto;
+      align-content: start;
+    }
+
+    .drag-list {
+      min-height: 300px;
+      flex: 1 1 auto;
+      display: flex;
+      flex-wrap: wrap;
+      align-content: space-evenly;
+      align-items: center;
+      justify-content: space-evenly;
+      gap: 16px 18px;
+      padding: 8px 8px 18px;
+      width: 100%;
+      overflow: hidden;
+    }
+
+    .word-target {
+      position: relative;
+      min-height: 60px;
+      border-radius: 17px;
+      border: 2px solid #dbeadb;
+      background: linear-gradient(135deg, #f7fff7, #ffffff);
+      padding: 8px 14px;
+      display: grid;
+      grid-template-columns: 30px 1fr;
+      align-items: center;
+      gap: 10px;
+      overflow: visible;
+      transition: 0.18s ease;
+    }
+
+    .word-target.over {
+      border-color: var(--orange);
+      background: #fff8ef;
+      transform: translateY(-1px);
+      box-shadow: 0 10px 20px rgba(251, 138, 58, 0.12);
+    }
+
+    .word-target.flash-wrong {
+      border-color: var(--red);
+      background: #fff2f2;
+      animation: shake 0.26s ease;
+    }
+
+    .row-num {
+      width: 30px;
+      height: 30px;
+      display: inline-grid;
+      place-items: center;
+      border-radius: 999px;
+      background: #ffffff;
+      color: var(--green);
+      font-size: 13px;
+      font-weight: 900;
+      flex: 0 0 auto;
+      border: 1px solid #d7ead8;
+    }
+
+    .merged-word {
+      min-width: 0;
+      text-align: left;
+    }
+
+    .auto-pinyin {
+      min-height: 14px;
+      color: var(--orange);
+      font-size: 13px;
+      font-weight: 900;
+      line-height: 1.05;
+      margin-bottom: 1px;
+    }
+
+    .auto-pinyin:empty { display: none; }
+
+    .merged-line {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .merged-zh {
+      font-family: "KaiTi", "STKaiti", "Microsoft YaHei", serif;
+      font-size: 26px;
+      line-height: 1.05;
+      color: #263f31;
+      font-weight: 900;
+      flex: 0 0 auto;
+    }
+
+    .merged-pinyin,
+    .merged-en {
+      color: #5f6e65;
+      font-size: 20px;
+      line-height: 1.1;
+      font-weight: 800;
+      flex: 0 1 auto;
+    }
+
+    .merged-pinyin { color: var(--orange); }
+    .merged-pinyin:empty,
+    .merged-en:empty { display: none; }
+
+    .complete-mark {
+      position: absolute;
+      right: 12px;
+      top: 10px;
+      color: var(--green);
+      font-size: 18px;
+      font-weight: 900;
+    }
+
+    .drag-card {
+      position: relative;
+      width: var(--ball-size, 110px);
+      min-width: var(--ball-size, 110px);
+      height: var(--ball-size, 110px);
+      border-radius: 50%;
+      padding: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-weight: 900;
+      line-height: 1.22;
+      background:
+        radial-gradient(circle at 34% 28%, rgba(255,255,255,0.78) 0 12%, rgba(255,255,255,0.24) 13%, rgba(255,255,255,0) 30%),
+        radial-gradient(circle at 50% 42%, var(--ball-core, rgba(245,234,208,0.70)) 0 56%, var(--ball-edge, rgba(226,206,163,0.62)) 78%, var(--ball-rim, rgba(186,162,124,0.42)) 100%);
+      border: 0;
+      color: var(--ball-text, #2e2e2e);
+      cursor: grab;
+      user-select: none;
+      opacity: 0.84;
+      margin-top: var(--ball-offset, 0px);
+      box-shadow:
+        inset 0 7px 12px rgba(255, 255, 255, 0.34),
+        inset 0 -10px 16px rgba(120, 104, 83, 0.08),
+        0 0 10px 3px rgba(255,255,255,0.28),
+        0 10px 18px rgba(83, 110, 140, 0.10),
+        0 0 18px var(--ball-glow, rgba(255,255,255,0.34));
+      touch-action: none;
+      transition: transform 0.14s ease, opacity 0.14s ease, box-shadow 0.14s ease;
+      animation: floatBall 4.4s ease-in-out infinite;
+      overflow: hidden;
+    }
+
+    .drag-card::before {
+      content: "";
+      position: absolute;
+      width: 36%;
+      height: 21%;
+      left: 18%;
+      top: 16%;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.58);
+      filter: blur(0.5px);
+      transform: rotate(-25deg);
+      pointer-events: none;
+    }
+
+    .drag-card::after {
+      content: "";
+      position: absolute;
+      inset: 3px;
+      border-radius: 50%;
+      box-shadow: inset 0 0 10px rgba(255,255,255,0.42), 0 0 7px rgba(255,255,255,0.42);
+      pointer-events: none;
+      opacity: 0.9;
+    }
+
+    .drag-card span {
+      position: relative;
+      z-index: 1;
+      text-shadow: 0 1px 1px rgba(255, 255, 255, 0.24);
+      font-size: var(--ball-font, 15px);
+      max-width: 88%;
+      word-break: break-word;
+    }
+
+    .drag-card:hover {
+      transform: translateY(-4px) scale(1.04);
+      opacity: 0.92;
+    }
+    .drag-card:active { cursor: grabbing; }
+    .drag-card.selected {
+      outline: 0;
+      opacity: 0.96;
+      box-shadow:
+        inset 0 7px 12px rgba(255, 255, 255, 0.38),
+        inset 0 -10px 16px rgba(120, 104, 83, 0.08),
+        0 0 0 4px rgba(255,255,255,0.18),
+        0 0 16px 6px rgba(255,255,255,0.34),
+        0 12px 20px rgba(83, 110, 140, 0.12);
+    }
+
+    @keyframes floatBall {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+
+    .drag-type { display: none; }
+
+    .result-box {
+      margin: 18px auto 0;
+      max-width: 760px;
+      border-radius: 20px;
+      padding: 16px 18px;
+      text-align: center;
+      font-weight: 900;
+      border: 2px solid #dceedd;
+      background: #f9fff9;
+    }
+
+    .result-box.good { border-color: #77bd8a; color: #2b7b45; }
+
+    .teacher-preview-label {
+      margin: 0 0 14px;
+      color: var(--muted);
+      font-weight: 800;
+      text-align: center;
+    }
+
+    .share-box {
+      margin-top: 10px;
+      border: 2px dashed #cddfce;
+      border-radius: 18px;
+      padding: 12px 14px;
+      background: #fbfffb;
+      color: #2f6844;
+      font-size: 14px;
+      line-height: 1.55;
+      font-weight: 900;
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 22px;
+      transform: translateX(-50%);
+      background: #274536;
+      color: white;
+      border-radius: 999px;
+      padding: 11px 18px;
+      font-weight: 900;
+      box-shadow: var(--shadow);
+      z-index: 10;
+    }
+
+    .sparkle {
+      position: absolute;
+      pointer-events: none;
+      font-size: 18px;
+      animation: sparklePop 0.9s ease-out forwards;
+      z-index: 5;
+    }
+
+    @keyframes sparklePop {
+      0% { transform: translate(0, 0) scale(0.5); opacity: 0; }
+      20% { opacity: 1; }
+      100% { transform: translate(var(--dx), var(--dy)) scale(1.25); opacity: 0; }
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-5px); }
+      75% { transform: translateX(5px); }
+    }
+
+    @media (max-width: 1100px) {
+      body { padding: 12px; }
+      .app { grid-template-columns: 1fr; min-height: auto; }
+      .topbar { grid-template-columns: 1fr; }
+      .top-actions { justify-content: stretch; }
+      .top-actions button { flex: 1; }
+      .button-row-2 { grid-template-columns: 1fr; }
+      .statusbar { grid-template-columns: repeat(2, auto); }
+      .game-board { padding: 18px 12px; }
+      .fusion-layout { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 620px) {
+      .button-row { grid-template-columns: 1fr; }
+      .statusbar { grid-template-columns: 1fr; }
+      .merged-zh { font-size: 27px; }
+    }
+  /* Platform integration overrides */
+    .platform-task-card{
+      border:2px solid #e0eedf;
+      background:#fbfffb;
+      border-radius:20px;
+      padding:14px;
+    }
+    .platform-task-card .platform-builder-grid{grid-template-columns:1fr;gap:12px;}
+    .platform-task-card .platform-field{margin:0;}
+    .platform-task-card .platform-label{font-size:13px;font-weight:900;color:#3e4c58;margin-bottom:6px;}
+    .platform-task-card .platform-input,
+    .platform-task-card .platform-textarea,
+    .platform-task-card input[type="date"]{
+      width:100%;border:2px solid var(--line);background:#fffefa;border-radius:14px;
+      padding:10px 12px;font:inherit;color:var(--ink);
+    }
+    .platform-task-card .platform-textarea{min-height:96px;resize:vertical;line-height:1.5;white-space:pre-wrap;}
+    .platform-task-card .platform-help{font-size:11.5px;color:var(--muted);line-height:1.5;margin-top:5px;}
+    .platform-task-card .platform-list-status{font-size:12px;margin-top:5px;line-height:1.45;}
+    .platform-task-card .platform-list-status.ok{color:#2b7b45;}
+    .platform-task-card .platform-list-status.error{color:#c34d4d;}
+
+    .student-task-gate{
+      width:min(680px,100%);margin:0 auto 16px;background:#fff;border-radius:22px;
+      padding:20px;box-shadow:var(--shadow);border:2px solid #e0eedf;
+    }
+    .student-task-gate h2{margin:0 0 14px;text-align:center;color:#274536;}
+    .student-task-gate .platform-task-info{margin:0 0 14px;padding:13px;border-radius:14px;}
+    .student-task-gate .platform-task-info-grid{display:grid;grid-template-columns:1fr;gap:6px;}
+    .student-task-gate .platform-student-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+    .student-task-gate .platform-select{width:100%;border:2px solid var(--line);background:#fffefa;border-radius:14px;padding:10px 12px;}
+    .student-task-gate .platform-student-message{font-size:13px;color:#c34d4d;text-align:center;margin-top:8px;min-height:18px;}
+    .student-task-gate .gate-error{padding:14px;border-radius:14px;background:#fff3f3;color:#b74040;text-align:center;font-weight:800;}
+    .task-start-btn{width:100%;margin-top:12px;background:linear-gradient(135deg,#78c091,#4f9d69);}
+    .certificate-btn{margin-top:14px;background:linear-gradient(135deg,#ffb15f,#fb8a3a);}
+    .platform-submit-status{font-size:12px;line-height:1.5;margin-top:10px;text-align:center;color:var(--muted);}
+    .platform-submit-status.success{color:#2b7b45;}
+    .platform-submit-status.error{color:#c34d4d;}
+    .share-link-text{word-break:break-all;font-weight:700;color:#395547;margin-top:6px;}
+    @media(max-width:620px){.student-task-gate .platform-student-grid{grid-template-columns:1fr;}}
+
+  </style>
+  <link rel="stylesheet" href="./platform/platform-ui.css">
+</head>
+<body>
+  <div id="teacherApp" class="app">
+    <aside class="card sidebar">
+      <h1 class="title"><span class="badge">🧩</span><span>线上连线游戏生成器</span></h1>
+
+      <div>
+        <label for="wordsInput">请输入词语</label>
+        <textarea id="wordsInput" placeholder="苹果&#10;香蕉&#10;草莓"></textarea>
+      </div>
+
+      <div class="button-row">
+        <button id="generatePinyinBtn" class="btn-blue" type="button">生成拼音</button>
+        <button id="generateEnglishBtn" class="btn-orange" type="button">生成英文</button>
+      </div>
+
+      <div>
+        <label for="gameMode">选择匹配模式</label>
+        <select id="gameMode">
+          <option value="zh-pinyin" selected>汉字 - 拼音</option>
+          <option value="zhMarked-en">汉字（标音） - 英文</option>
+          <option value="zhOnly-en">汉字（不标音） - 英文</option>
+        </select>
+      </div>
+
+      <div class="platform-task-card">
+        <div class="platform-builder-grid">
+          <div class="platform-field">
+            <label class="platform-label" for="taskTitle">任务标题 <span class="platform-label-note">（选填）</span></label>
+            <input class="platform-input" id="taskTitle" type="text" placeholder="例：9G1 交通工具连线练习">
+          </div>
+          <div class="platform-field">
+            <label class="platform-label" for="studentList">学生名单 <span class="platform-label-note">（选填，但建议填写）</span></label>
+            <textarea class="platform-textarea" id="studentList" placeholder="9G1,Lina&#10;9G1,Sara"></textarea>
+            <div class="platform-help">格式：班级,姓名 或 班级 姓名；一行一名学生。班级名称含空格时请使用逗号。</div>
+            <div class="platform-list-status" id="studentListStatus"></div>
+          </div>
+          <div class="platform-field">
+            <label class="platform-label" for="taskDeadline">截止日期 <span class="platform-label-note">（选填）</span></label>
+            <input class="platform-input" id="taskDeadline" type="date">
+          </div>
+        </div>
+      </div>
+
+      <div class="button-row-2">
+        <button id="previewGameBtn" class="btn-green" type="button">预览游戏</button>
+        <button id="copyLinkBtn" class="btn-orange" type="button">生成学生链接</button>
+      </div>
+      <div id="shareBox" class="share-box hidden"></div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar card">
+        <div>
+          <label for="gameTitle">游戏标题</label>
+          <input id="gameTitle" value="Matching Game" />
+        </div>
+        <div>
+          <label for="studentInstruction">学生说明</label>
+          <input id="studentInstruction" value="Drag balls to words." />
+        </div>
+        <div class="top-actions">
+          <button id="shuffleBtn" class="btn-gray" type="button">重新打乱</button>
+          <button id="resetDemoBtn" class="btn-red" type="button">重置预览</button>
+        </div>
+      </div>
+
+      <section class="preview-card card">
+        <div class="section-head">
+          <h2>游戏预览</h2>
+          <span class="pill" id="rowCount">0 items</span>
+        </div>
+        <div class="preview-shell">
+          <p class="teacher-preview-label">左边是词语文本框，右边是待拖动气球。拖对后会自动融合；拖错会返回原处。</p>
+          <div id="teacherPreview"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="studentApp" class="hidden">
+    <div class="preview-shell" style="min-height: calc(100vh - 44px);">
+      <div id="studentTaskGate" class="student-task-gate hidden">
+        <h2>Online Chinese Matching</h2>
+        <div class="platform-task-info" id="studentTaskInfo"></div>
+        <div class="platform-student-grid" id="studentIdentityGrid">
+          <div class="platform-field">
+            <label class="platform-label" for="studentClassSelect">Class</label>
+            <select class="platform-select" id="studentClassSelect">
+              <option value="">Select your class</option>
+            </select>
+          </div>
+          <div class="platform-field">
+            <label class="platform-label" for="studentNameSelect">Name</label>
+            <select class="platform-select" id="studentNameSelect">
+              <option value="">Select your class first</option>
+            </select>
+          </div>
+        </div>
+        <div class="platform-student-message" id="studentGateMessage"></div>
+        <button id="studentStartTask" class="task-start-btn" type="button">Start Matching Game</button>
+      </div>
+      <div id="studentGame"></div>
+    </div>
+  </div>
+
+  <script src="./platform/supabase-config.js"></script>
+  <script src="./platform/platform-core.js"></script>
+  <script>
+    (function () {
+      "use strict";
+
+      const fallbackEnglish = {
+        "我": "I / me", "你": "you", "他": "he / him", "她": "she / her", "它": "it",
+        "我们": "we / us", "你们": "you", "他们": "they / them", "她们": "they / them",
+        "是": "be / am / is / are", "不": "not / no", "有": "have / there is", "没有": "do not have / there is not",
+        "你好": "hello", "再见": "goodbye", "谢谢": "thank you", "休息": "rest", "劳动": "labor / work",
+        "旅游": "travel / tourism", "放假": "have a holiday", "劳动节": "May Day / Labor Day", "水": "water",
+        "苹果": "apple", "香蕉": "banana", "草莓": "strawberry"
+      };
+
+      const GAME_KEY = "online_matching";
+      const GAME_NAME = "Online Chinese Matching";
+      const APP_VERSION = "1.0.0";
+      const Platform = window.TeacherLiuPlatform || null;
+
+      let currentTask = null;
+      let isTaskMode = false;
+      let pendingTaskConfig = null;
+      let selectedClassName = "";
+      let selectedStudentName = "";
+      let taskResultSubmitted = false;
+      let taskResultSaving = false;
+      let activeStudentConfig = null;
+
+      let vocabIndex = new Map();
+      let charPinyinIndex = new Map();
+      let lastGeneratedEnglishRows = [];
+      let lastGeneratedPinyinRows = [];
+      let selectedCardId = "";
+      let teacherGame = null;
+      let studentGame = null;
+
+      function getElement(id) {
+        const element = document.getElementById(id);
+        if (!element) throw new Error(`Missing element: #${id}`);
+        return element;
+      }
+
+      function escapeHtml(str) {
+        return String(str || "")
+          .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+      }
+
+      function getGlobalVocabCandidates() {
+        const candidates = [];
+        if (typeof CATEGORIES !== "undefined") candidates.push(CATEGORIES);
+        if (typeof vocabData !== "undefined") candidates.push(vocabData);
+        if (typeof VOCAB_DATA !== "undefined") candidates.push(VOCAB_DATA);
+        if (typeof VocabData !== "undefined") candidates.push(VocabData);
+        if (typeof VOCABDATA !== "undefined") candidates.push(VOCABDATA);
+        if (window.CATEGORIES) candidates.push(window.CATEGORIES);
+        if (window.vocabData) candidates.push(window.vocabData);
+        if (window.VOCAB_DATA) candidates.push(window.VOCAB_DATA);
+        if (window.VocabData) candidates.push(window.VocabData);
+        if (window.VOCABDATA) candidates.push(window.VOCABDATA);
+        return candidates;
+      }
+
+      function flattenVocab(source) {
+        if (!source) return [];
+        if (Array.isArray(source)) return source.flatMap(flattenVocab);
+        if (typeof source !== "object") return [];
+        if (source.hanzi && (source.pinyin || source.en)) return [source];
+        return Object.values(source).flatMap(flattenVocab);
+      }
+
+      function buildVocabIndex() {
+        vocabIndex = new Map();
+        charPinyinIndex = new Map();
+        const entries = getGlobalVocabCandidates().flatMap(flattenVocab);
+        for (const item of entries) {
+          const hanzi = String(item.hanzi || "").trim();
+          if (!hanzi) continue;
+          const record = { pinyin: String(item.pinyin || "").trim(), en: String(item.en || "").trim() };
+          if (!vocabIndex.has(hanzi)) vocabIndex.set(hanzi, record);
+          if ([...hanzi].length === 1 && record.pinyin && !charPinyinIndex.has(hanzi)) {
+            charPinyinIndex.set(hanzi, record.pinyin.split("/")[0].trim());
+          }
+        }
+      }
+
+      function splitLines(text) { return String(text || "").split(/\r?\n+/); }
+
+      function parseRowsFromText(text) {
+        return splitLines(text).map(line => line.trim()).filter(Boolean).map(line => {
+          const parts = line.split("|").map(part => part.trim());
+          return { zh: parts[0] || "", pinyin: parts[1] || "", en: parts.slice(2).join("|").trim() || "" };
+        });
+      }
+
+      function parseRows() { return parseRowsFromText(getElement("wordsInput").value); }
+      function rowsToText(rows) { return rows.map(row => `${row.zh}|${row.pinyin}|${row.en}`).join("\n"); }
+      function getVocabItem(hanzi) { return vocabIndex.get(String(hanzi || "").trim()) || null; }
+
+      function getPinyinFunction() {
+        if (window.pinyinPro && typeof window.pinyinPro.pinyin === "function") return window.pinyinPro.pinyin;
+        if (window.PinyinPro && typeof window.PinyinPro.pinyin === "function") return window.PinyinPro.pinyin;
+        if (typeof window.pinyin === "function") return window.pinyin;
+        return null;
+      }
+
+      function getPinyinForHanzi(hanzi) {
+        const value = String(hanzi || "").trim();
+        if (!value) return "";
+        const vocabItem = getVocabItem(value);
+        if (vocabItem?.pinyin) return vocabItem.pinyin;
+
+        // Offline fallback: combine single-character readings from the local vocab file.
+        const chars = [...value];
+        if (chars.length && chars.every(ch => /\s/.test(ch) || charPinyinIndex.has(ch) || !/[\u3400-\u9fff]/.test(ch))) {
+          const joined = chars.map(ch => {
+            if (/\s/.test(ch)) return "";
+            if (charPinyinIndex.has(ch)) return charPinyinIndex.get(ch);
+            return ch;
+          }).filter(Boolean).join(" ").trim();
+          if (joined && joined !== value) return joined;
+        }
+
+        const pinyinFn = getPinyinFunction();
+        if (pinyinFn) {
+          try {
+            const result = pinyinFn(value, { toneType: "symbol", type: "array" });
+            if (Array.isArray(result) && result.length) return result.join(" ");
+            if (typeof result === "string" && result.trim()) return result.trim();
+          } catch (error) { console.warn("Pinyin library failed:", error); }
+        }
+        return "";
+      }
+
+      function getEnglishForHanzi(hanzi) {
+        const value = String(hanzi || "").trim();
+        if (!value) return "";
+        const vocabItem = getVocabItem(value);
+        if (vocabItem?.en) return vocabItem.en;
+        return fallbackEnglish[value] || "【PLEASE EDIT】";
+      }
+
+      function isEditPlaceholder(value) {
+        const text = String(value || "").trim().toUpperCase();
+        return text === "PLEASE EDIT" || text === "【PLEASE EDIT】" || text === "【PLESE EDIT】" || text === "PLESE EDIT";
+      }
+
+      function getKnownGeneratedPinyinValues() {
+        const values = new Set();
+        vocabIndex.forEach(item => { if (item.pinyin) values.add(String(item.pinyin).trim()); });
+        return values;
+      }
+
+      function getKnownGeneratedEnglishValues() {
+        const values = new Set();
+        Object.values(fallbackEnglish).forEach(value => values.add(String(value).trim()));
+        vocabIndex.forEach(item => { if (item.en) values.add(String(item.en).trim()); });
+        values.add("【PLEASE EDIT】"); values.add("【PLESE EDIT】"); values.add("PLEASE EDIT"); values.add("PLESE EDIT");
+        return values;
+      }
+
+      function shouldReplacePinyin(row, index) {
+        const currentPinyin = String(row.pinyin || "").trim();
+        if (!currentPinyin) return true;
+        const lastAuto = lastGeneratedPinyinRows[index];
+        if (lastAuto && lastAuto.pinyin === currentPinyin) return true;
+        return getKnownGeneratedPinyinValues().has(currentPinyin);
+      }
+
+      function shouldReplaceEnglish(row, index) {
+        const currentEnglish = String(row.en || "").trim();
+        if (!currentEnglish) return true;
+        if (isEditPlaceholder(currentEnglish)) return true;
+        const lastAuto = lastGeneratedEnglishRows[index];
+        if (lastAuto && lastAuto.en === currentEnglish) return true;
+        return getKnownGeneratedEnglishValues().has(currentEnglish);
+      }
+
+      function generatePinyinInTextarea() {
+        const rows = parseRows().map((row, index) => ({ ...row, pinyin: shouldReplacePinyin(row, index) ? getPinyinForHanzi(row.zh) : row.pinyin }));
+        lastGeneratedPinyinRows = rows.map(row => ({ zh: row.zh, pinyin: row.pinyin }));
+        getElement("wordsInput").value = rowsToText(rows);
+        refreshTeacherPreview();
+      }
+
+      function generateEnglishInTextarea() {
+        const rows = parseRows().map((row, index) => ({ ...row, en: shouldReplaceEnglish(row, index) ? getEnglishForHanzi(row.zh) : row.en }));
+        lastGeneratedEnglishRows = rows.map(row => ({ zh: row.zh, en: row.en }));
+        getElement("wordsInput").value = rowsToText(rows);
+        refreshTeacherPreview();
+      }
+
+      function shuffledArray(items) {
+        const result = [...items];
+        for (let i = result.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [result[i], result[j]] = [result[j], result[i]];
+        }
+        return result;
+      }
+
+      function encodeState(state) {
+        const json = JSON.stringify(state);
+        const utf8 = new TextEncoder().encode(json);
+        let binary = "";
+        utf8.forEach(byte => binary += String.fromCharCode(byte));
+        return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+      }
+
+      function decodeState(code) {
+        try {
+          const padded = String(code || "").replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(String(code || "").length / 4) * 4, "=");
+          const binary = atob(padded);
+          const bytes = Uint8Array.from(binary, char => char.charCodeAt(0));
+          return JSON.parse(new TextDecoder().decode(bytes));
+        } catch (error) {
+          console.warn("State decode failed:", error);
+          return null;
+        }
+      }
+
+      function getConfigFromTeacher() {
+        return {
+          title: getElement("gameTitle").value.trim() || "Matching Game",
+          instruction: getElement("studentInstruction").value.trim() || "Drag balls to words.",
+          mode: getElement("gameMode").value,
+          rows: parseRows().filter(row => row.zh)
+        };
+      }
+
+      function getShareUrl() {
+        const config = getConfigFromTeacher();
+        const url = new URL(window.location.href);
+        url.search = "";
+        url.hash = "";
+        url.searchParams.set("play", "1");
+        url.searchParams.set("c", encodeState(config));
+        return url.toString();
+      }
+
+
+      function ensurePlatformReady() {
+        if (Platform && Platform.ensureReady()) return true;
+        alert("任务系统文件没有正确加载。请确认 index.html 与 platform 文件夹一起上传。");
+        return false;
+      }
+
+      function updateStudentListStatus() {
+        const input = document.getElementById("studentList");
+        const box = document.getElementById("studentListStatus");
+        if (!input || !box || !Platform) return;
+        const raw = input.value.trim();
+        if (!raw) {
+          box.textContent = "";
+          box.className = "platform-list-status";
+          return;
+        }
+        const parsed = Platform.parseStudentListDetailed(raw);
+        if (parsed.invalidLines.length) {
+          box.className = "platform-list-status error";
+          box.textContent = "格式错误：第 " + parsed.invalidLines.map(x => x.lineNumber).join("、") + " 行。请使用“9G1,Lina”或“9G1 Lina”。";
+          return;
+        }
+        box.className = "platform-list-status ok";
+        box.textContent = "已识别 " + parsed.summary.classes + " 个班级、" + parsed.summary.students + " 名学生。" +
+          (parsed.duplicateCount ? " 已自动忽略 " + parsed.duplicateCount + " 条重复记录。" : "");
+      }
+
+      function fillMissingGeneratedFields() {
+        const rows = parseRows();
+        const updated = rows.map((row, index) => {
+          const next = { ...row };
+          if (!next.pinyin || shouldReplacePinyin(next, index)) next.pinyin = getPinyinForHanzi(next.zh);
+          if (!next.en || shouldReplaceEnglish(next, index)) next.en = getEnglishForHanzi(next.zh);
+          return next;
+        });
+        getElement("wordsInput").value = rowsToText(updated);
+        lastGeneratedPinyinRows = updated.map(row => ({ zh: row.zh, pinyin: row.pinyin }));
+        lastGeneratedEnglishRows = updated.map(row => ({ zh: row.zh, en: row.en }));
+        return updated;
+      }
+
+      function validateTaskRows(config) {
+        if (!config.rows.length) return "请至少输入一个词语。";
+        if (config.mode === "zh-pinyin") {
+          const missing = config.rows.filter(row => !row.pinyin || isEditPlaceholder(row.pinyin));
+          if (missing.length) return "以下词语缺少拼音：" + missing.map(row => row.zh).join("、") + "。请先点击“生成拼音”或手动填写。";
+        } else {
+          const missing = config.rows.filter(row => !row.en || isEditPlaceholder(row.en));
+          if (missing.length) return "以下词语缺少英文：" + missing.map(row => row.zh).join("、") + "。请先点击“生成英文”或手动填写。";
+        }
+        return "";
+      }
+
+      async function createPlatformTaskLink() {
+        if (!ensurePlatformReady()) return;
+
+        fillMissingGeneratedFields();
+        refreshTeacherPreview();
+        const config = getConfigFromTeacher();
+        const validationMessage = validateTaskRows(config);
+        if (validationMessage) {
+          alert(validationMessage);
+          return;
+        }
+
+        const rawList = getElement("studentList").value.trim();
+        const parsed = Platform.parseStudentListDetailed(rawList);
+        if (parsed.invalidLines.length) {
+          updateStudentListStatus();
+          alert("学生名单中存在格式错误，请先修正。");
+          return;
+        }
+
+        const expiresAt = Platform.toDeadlineIso(getElement("taskDeadline").value);
+        const taskTitle = getElement("taskTitle").value.trim() || (GAME_NAME + " · " + config.title);
+
+        try {
+          const created = await Platform.createTask({
+            creator_id: null,
+            creator_type: "anonymous",
+            teacher_name: null,
+            game_key: GAME_KEY,
+            game_name: GAME_NAME,
+            task_title: taskTitle,
+            class_data: parsed.classData,
+            word_data: config.rows.map(row => ({ hanzi: row.zh, pinyin: row.pinyin, en: row.en })),
+            settings: {
+              matchingConfig: config,
+              appVersion: APP_VERSION,
+              platformCoreVersion: Platform.version
+            },
+            source_url: window.location.href.split("?")[0].split("#")[0],
+            expires_at: expiresAt,
+            status: "active"
+          });
+
+          const url = Platform.buildTaskLink(created.task_code, window.location.href);
+          const box = getElement("shareBox");
+          box.innerHTML =
+            "✅ 学生链接已生成并复制。<br>" +
+            "Task ID: <strong>" + escapeHtml(created.task_code || "") + "</strong><br>" +
+            "Deadline: " + escapeHtml(expiresAt ? Platform.formatDeadline(expiresAt, "en-GB") : "None") +
+            '<div class="share-link-text">' + escapeHtml(url) + "</div>" +
+            '链接较长时，可使用 <a href="https://tinyurl.com" target="_blank" rel="noopener noreferrer">TinyURL</a> 缩短。';
+          box.classList.remove("hidden");
+
+          try {
+            await navigator.clipboard.writeText(url);
+            showToast("学生链接已复制");
+          } catch (copyError) {
+            showToast("链接已生成，请从页面中手动复制");
+          }
+        } catch (error) {
+          console.error(error);
+          alert("生成学生链接失败：\n" + (error && error.message ? error.message : String(error)));
+        }
+      }
+
+      async function copyShareLink() {
+        const url = getShareUrl();
+        const shareBox = getElement("shareBox");
+        shareBox.innerHTML = `✅已复制链接。链接过长时，建议用 <a href="https://tinyurl.com" target="_blank" rel="noopener noreferrer">TinyUrl(https://tinyurl.com)</a> 缩短。`;
+        shareBox.classList.remove("hidden");
+        try {
+          await navigator.clipboard.writeText(url);
+          showToast("学生链接已复制");
+        } catch (error) {
+          showToast("浏览器阻止自动复制，请更换浏览器或在 HTTPS 页面中重试");
+        }
+      }
+
+      function showToast(message) {
+        const old = document.querySelector(".toast");
+        if (old) old.remove();
+        const toast = document.createElement("div");
+        toast.className = "toast";
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 1800);
+      }
+
+      function getModeSpec(mode) {
+        if (mode === "zh-en") mode = "zhOnly-en";
+        if (mode === "zh-pinyin-en") mode = "zhMarked-en";
+        if (mode === "zh-pinyin") {
+          return {
+            cards: [{ key: "pinyin", label: "Pinyin" }],
+            showPinyinOnTarget: false
+          };
+        }
+        if (mode === "zhMarked-en") {
+          return {
+            cards: [{ key: "en", label: "English" }],
+            showPinyinOnTarget: true
+          };
+        }
+        if (mode === "zhOnly-en") {
+          return {
+            cards: [{ key: "en", label: "English" }],
+            showPinyinOnTarget: false
+          };
+        }
+        return {
+          cards: [{ key: "pinyin", label: "Pinyin" }],
+          showPinyinOnTarget: false
+        };
+      }
+
+      function getCardText(row, key) {
+        if (key === "pinyin") return row.pinyin || "【PLEASE EDIT】";
+        if (key === "en") return row.en || "【PLEASE EDIT】";
+        return "";
+      }
+
+      function createGame(container, config, options = {}) {
+        const rows = (config.rows || []).map((row, index) => ({ ...row, id: String(index) })).filter(row => row.zh);
+        const mode = config.mode || "zh-pinyin";
+        const spec = getModeSpec(mode);
+        const game = {
+          container,
+          rows,
+          mode,
+          spec,
+          title: config.title || "Matching Game",
+          instruction: config.instruction || "Drag balls to words.",
+          merged: {},
+          startedAt: Date.now(),
+          timerId: null,
+          isTeacherPreview: Boolean(options.teacherPreview),
+          completed: false,
+          completedDurationMs: 0,
+          wrongAttempts: 0,
+          correctMatches: 0,
+          cardOrderSeed: Math.random()
+        };
+        rows.forEach(row => { game.merged[row.id] = {}; });
+        renderGame(game);
+        startTimer(game);
+        return game;
+      }
+
+      function makeCards(game) {
+        const cards = [];
+        game.spec.cards.forEach(cardType => {
+          game.rows.forEach(row => {
+            if (!game.merged[row.id]?.[cardType.key]) {
+              cards.push({ id: `${cardType.key}-${row.id}`, rowId: row.id, key: cardType.key, label: cardType.label, text: getCardText(row, cardType.key) });
+            }
+          });
+        });
+        return shuffledArray(cards);
+      }
+
+
+      function getModeLabel(mode) {
+        if (mode === "zh-pinyin") return "Chinese - Pinyin";
+        if (mode === "zhMarked-en") return "Chinese (with Pinyin) - English";
+        if (mode === "zhOnly-en" || mode === "zh-en") return "Chinese - English";
+        return "Chinese Matching";
+      }
+
+      function completionResultHtml(game) {
+        const elapsed = game.completedDurationMs || (Date.now() - game.startedAt);
+        let html = `Excellent! All correct. Time: ${formatTime(elapsed)}.`;
+        if (!game.isTeacherPreview) {
+          html += `<div><button class="certificate-btn" type="button" data-action="certificate">🏅 Download Certificate</button></div>`;
+          if (isTaskMode) html += `<div data-role="platform-status" class="platform-submit-status"></div>`;
+        }
+        return html;
+      }
+
+      function renderGame(game) {
+        const total = game.rows.length * game.spec.cards.length;
+        const done = countMerged(game);
+        const targets = game.rows.map((row, index) => makeTarget(game, row, index)).join("");
+        const cards = makeCards(game).map((card, index) => makeDragCard(card, index)).join("");
+
+        game.container.innerHTML = `
+          <div class="game-board">
+            <h1 class="game-title">${escapeHtml(game.title)}</h1>
+            <p class="game-subtitle">${escapeHtml(game.instruction)}</p>
+            <div class="statusbar">
+              <div class="status-item">⏱️ Time: <span data-role="timer">00:00</span></div>
+              <div class="status-item">✅ Done: <span data-role="done">${done}</span>/${total}</div>
+            </div>
+            <div class="student-actions">
+              <button class="btn-gray" type="button" data-action="reset">Reset</button>
+            </div>
+            <div class="fusion-layout">
+              <section class="target-panel">
+                <h2 class="panel-title"><span>Words</span></h2>
+                <div class="target-list">${targets}</div>
+              </section>
+              <section class="drag-panel">
+                <h2 class="panel-title"><span>Drag balls to words.</span><span>${cards ? "" : "All done"}</span></h2>
+                <div class="drag-list">${cards || `<div class="result-box good">All cards are matched.</div>`}</div>
+              </section>
+            </div>
+            <div data-role="result" class="result-box ${game.completed ? "good" : "hidden"}">${game.completed ? completionResultHtml(game) : ""}</div>
+          </div>
+        `;
+        bindGameEvents(game);
+        const timer = game.container.querySelector('[data-role="timer"]');
+        if (timer) timer.textContent = formatTime(Date.now() - game.startedAt);
+      }
+
+      const BALL_PALETTES = [
+        { core: "rgba(247, 235, 205, 0.72)", edge: "rgba(232, 213, 159, 0.62)", rim: "rgba(198, 176, 125, 0.40)", glow: "rgba(255,255,255,0.38)", text: "#34312c" },
+        { core: "rgba(244, 199, 213, 0.70)", edge: "rgba(232, 169, 191, 0.60)", rim: "rgba(191, 136, 156, 0.40)", glow: "rgba(255,255,255,0.40)", text: "#402d34" },
+        { core: "rgba(203, 226, 244, 0.70)", edge: "rgba(170, 205, 233, 0.60)", rim: "rgba(126, 166, 197, 0.38)", glow: "rgba(255,255,255,0.40)", text: "#283440" },
+        { core: "rgba(244, 220, 198, 0.70)", edge: "rgba(232, 191, 164, 0.60)", rim: "rgba(191, 148, 125, 0.40)", glow: "rgba(255,255,255,0.38)", text: "#3d2f2a" },
+        { core: "rgba(236, 233, 183, 0.70)", edge: "rgba(221, 212, 137, 0.60)", rim: "rgba(176, 166, 100, 0.38)", glow: "rgba(255,255,255,0.36)", text: "#3d3a2a" },
+        { core: "rgba(220, 214, 245, 0.68)", edge: "rgba(194, 181, 232, 0.58)", rim: "rgba(149, 137, 195, 0.38)", glow: "rgba(255,255,255,0.38)", text: "#2f2a40" },
+        { core: "rgba(207, 239, 210, 0.68)", edge: "rgba(165, 217, 173, 0.58)", rim: "rgba(114, 176, 126, 0.36)", glow: "rgba(255,255,255,0.36)", text: "#29372c" },
+        { core: "rgba(244, 215, 222, 0.66)", edge: "rgba(230, 182, 196, 0.56)", rim: "rgba(196, 146, 163, 0.38)", glow: "rgba(255,255,255,0.36)", text: "#3d2b32" }
+      ];
+
+      function getVisualLength(text) {
+        return Array.from(String(text || "")).reduce((sum, char) => sum + (/^[一-鿿]$/.test(char) ? 2 : 1), 0);
+      }
+
+      function getBallStyle(card, index) {
+        const palette = BALL_PALETTES[index % BALL_PALETTES.length];
+        const units = getVisualLength(card.text);
+        const size = Math.max(86, Math.min(148, 76 + units * 5));
+        const fontSize = units <= 4 ? 17 : units <= 8 ? 15 : units <= 12 ? 14 : 13;
+        const offsets = [0, 18, -12, 10, -8, 20, -16, 12];
+        const offset = offsets[index % offsets.length];
+        return [
+          `--ball-size:${size}px`,
+          `--ball-font:${fontSize}px`,
+          `--ball-core:${palette.core}`,
+          `--ball-edge:${palette.edge}`,
+          `--ball-rim:${palette.rim}`,
+          `--ball-glow:${palette.glow}`,
+          `--ball-text:${palette.text}`,
+          `--ball-offset:${offset}px`,
+          `animation-delay:${-0.55 * index}s`
+        ].join(";");
+      }
+
+      function makeTarget(game, row, index) {
+        const merged = game.merged[row.id] || {};
+        const isComplete = game.spec.cards.every(card => merged[card.key]);
+        return `
+          <div class="word-target" data-row-id="${escapeHtml(row.id)}">
+            <span class="row-num">${index + 1}</span>
+            <div class="merged-word">
+              <div class="auto-pinyin">${game.spec.showPinyinOnTarget ? escapeHtml(row.pinyin) : ""}</div>
+              <div class="merged-line">
+                <div class="merged-zh">${escapeHtml(row.zh)}</div>
+                <div class="merged-pinyin">${(!game.spec.showPinyinOnTarget && merged.pinyin) ? escapeHtml(row.pinyin) : ""}</div>
+                <div class="merged-en">${merged.en ? escapeHtml(row.en) : ""}</div>
+              </div>
+            </div>
+            ${isComplete ? `<span class="complete-mark">✓</span>` : ""}
+          </div>
+        `;
+      }
+
+      function makeDragCard(card, index) {
+        const typeClass = card.key === "pinyin" ? "card-pinyin" : "card-en";
+        return `
+          <div class="drag-card ${typeClass}" style="${escapeHtml(getBallStyle(card, index))}" draggable="true" data-card-id="${escapeHtml(card.id)}" data-row-id="${escapeHtml(card.rowId)}" data-key="${escapeHtml(card.key)}">
+            <span>${escapeHtml(card.text)}</span>
+          </div>
+        `;
+      }
+
+      function bindGameEvents(game) {
+        game.container.querySelectorAll(".drag-card").forEach(card => {
+          card.addEventListener("dragstart", event => {
+            selectedCardId = card.dataset.cardId || "";
+            event.dataTransfer.effectAllowed = "move";
+            event.dataTransfer.setData("text/plain", JSON.stringify({ cardId: card.dataset.cardId, rowId: card.dataset.rowId, key: card.dataset.key }));
+          });
+          card.addEventListener("click", () => {
+            game.container.querySelectorAll(".drag-card.selected").forEach(el => el.classList.remove("selected"));
+            selectedCardId = card.dataset.cardId || "";
+            card.classList.add("selected");
+          });
+        });
+
+        game.container.querySelectorAll(".word-target").forEach(target => {
+          target.addEventListener("dragover", event => { event.preventDefault(); target.classList.add("over"); });
+          target.addEventListener("dragleave", () => target.classList.remove("over"));
+          target.addEventListener("drop", event => {
+            event.preventDefault();
+            target.classList.remove("over");
+            let payload = null;
+            try { payload = JSON.parse(event.dataTransfer.getData("text/plain")); } catch (error) { payload = null; }
+            if (payload) tryMergeCard(game, payload, target.dataset.rowId, target);
+          });
+          target.addEventListener("click", () => {
+            const selected = game.container.querySelector(`.drag-card[data-card-id="${CSS.escape(selectedCardId)}"]`);
+            if (!selected) return;
+            tryMergeCard(game, { cardId: selected.dataset.cardId, rowId: selected.dataset.rowId, key: selected.dataset.key }, target.dataset.rowId, target);
+          });
+        });
+
+        const resetBtn = game.container.querySelector('[data-action="reset"]');
+        if (resetBtn) resetBtn.addEventListener("click", () => resetGame(game));
+
+        const certificateBtn = game.container.querySelector('[data-action="certificate"]');
+        if (certificateBtn) certificateBtn.addEventListener("click", () => downloadCertificate(game));
+      }
+
+      function tryMergeCard(game, payload, targetRowId, targetEl) {
+        if (!payload || !targetRowId) return;
+        if (payload.rowId !== targetRowId) {
+          game.wrongAttempts++;
+          flashWrong(targetEl);
+          selectedCardId = "";
+          game.container.querySelectorAll(".drag-card.selected").forEach(el => el.classList.remove("selected"));
+          return;
+        }
+        if (!game.merged[targetRowId]) game.merged[targetRowId] = {};
+        if (game.merged[targetRowId][payload.key]) return;
+
+        game.merged[targetRowId][payload.key] = true;
+        game.correctMatches++;
+        const row = game.rows.find(item => item.id === targetRowId);
+        selectedCardId = "";
+        renderGame(game);
+        const newTarget = game.container.querySelector(`.word-target[data-row-id="${CSS.escape(targetRowId)}"]`);
+        if (newTarget) {
+          showSparkles(newTarget);
+          if (row) speakChinese(row.zh);
+        }
+        if (isComplete(game)) finishGame(game);
+      }
+
+      function flashWrong(targetEl) {
+        targetEl.classList.remove("flash-wrong");
+        void targetEl.offsetWidth;
+        targetEl.classList.add("flash-wrong");
+        setTimeout(() => targetEl.classList.remove("flash-wrong"), 360);
+      }
+
+      function showSparkles(targetEl) {
+        const stars = ["✨", "⭐", "🌟", "✨", "⭐", "🌟"];
+        const offsets = [[-25, -28], [18, -34], [46, -10], [-38, 8], [8, 34], [42, 24]];
+        stars.forEach((star, index) => {
+          const el = document.createElement("span");
+          el.className = "sparkle";
+          el.textContent = star;
+          el.style.left = `${50 + (index % 3) * 12}%`;
+          el.style.top = `${30 + (index % 2) * 26}%`;
+          el.style.setProperty("--dx", `${offsets[index][0]}px`);
+          el.style.setProperty("--dy", `${offsets[index][1]}px`);
+          targetEl.appendChild(el);
+          setTimeout(() => el.remove(), 950);
+        });
+      }
+
+      function speakChinese(text) {
+        if (!window.speechSynthesis || !text) return;
+        try {
+          window.speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.lang = "zh-CN";
+          utterance.rate = 0.85;
+          window.speechSynthesis.speak(utterance);
+        } catch (error) {
+          console.warn("Speech synthesis failed:", error);
+        }
+      }
+
+      function resetGame(game) {
+        game.merged = {};
+        game.rows.forEach(row => { game.merged[row.id] = {}; });
+        game.completed = false;
+        game.completedDurationMs = 0;
+        game.wrongAttempts = 0;
+        game.correctMatches = 0;
+        game.startedAt = Date.now();
+        taskResultSubmitted = false;
+        taskResultSaving = false;
+        selectedCardId = "";
+        renderGame(game);
+        startTimer(game);
+      }
+
+      function countMerged(game) {
+        let count = 0;
+        game.rows.forEach(row => {
+          game.spec.cards.forEach(card => {
+            if (game.merged[row.id]?.[card.key]) count++;
+          });
+        });
+        return count;
+      }
+
+      function isComplete(game) {
+        return countMerged(game) === game.rows.length * game.spec.cards.length && game.rows.length > 0;
+      }
+
+      function finishGame(game) {
+        if (game.completed) return;
+        game.completed = true;
+        game.completedDurationMs = Math.max(0, Date.now() - game.startedAt);
+        stopTimer(game);
+        renderGame(game);
+        if (!game.isTeacherPreview && isTaskMode) submitMatchingResult(game);
+      }
+
+      function startTimer(game) {
+        stopTimer(game);
+        game.timerId = setInterval(() => {
+          if (game.completed) return;
+          const timer = game.container.querySelector('[data-role="timer"]');
+          if (timer) timer.textContent = formatTime(Date.now() - game.startedAt);
+        }, 500);
+      }
+
+      function stopTimer(game) {
+        if (game.timerId) clearInterval(game.timerId);
+        game.timerId = null;
+      }
+
+      function formatTime(ms) {
+        const seconds = Math.floor(ms / 1000);
+        const mm = String(Math.floor(seconds / 60)).padStart(2, "0");
+        const ss = String(seconds % 60).padStart(2, "0");
+        return `${mm}:${ss}`;
+      }
+
+      function refreshTeacherPreview() {
+        const config = getConfigFromTeacher();
+        getElement("rowCount").textContent = `${config.rows.length} items`;
+        if (teacherGame) stopTimer(teacherGame);
+        teacherGame = createGame(getElement("teacherPreview"), config, { teacherPreview: true });
+      }
+
+      function bindTeacherEvents() {
+        getElement("wordsInput").addEventListener("input", refreshTeacherPreview);
+        getElement("gameTitle").addEventListener("input", refreshTeacherPreview);
+        getElement("studentInstruction").addEventListener("input", refreshTeacherPreview);
+        getElement("gameMode").addEventListener("change", refreshTeacherPreview);
+        getElement("generatePinyinBtn").addEventListener("click", generatePinyinInTextarea);
+        getElement("generateEnglishBtn").addEventListener("click", generateEnglishInTextarea);
+        getElement("previewGameBtn").addEventListener("click", refreshTeacherPreview);
+        getElement("copyLinkBtn").addEventListener("click", createPlatformTaskLink);
+        getElement("shuffleBtn").addEventListener("click", refreshTeacherPreview);
+        getElement("resetDemoBtn").addEventListener("click", refreshTeacherPreview);
+      }
+
+      function initStudentMode(config) {
+        activeStudentConfig = config;
+        getElement("teacherApp").classList.add("hidden");
+        getElement("studentApp").classList.remove("hidden");
+        getElement("studentTaskGate").classList.add("hidden");
+        studentGame = createGame(getElement("studentGame"), config, { teacherPreview: false });
+      }
+
+      function initTeacherMode() {
+        bindTeacherEvents();
+        const deadline = document.getElementById("taskDeadline");
+        if (deadline) deadline.min = new Date().toISOString().slice(0, 10);
+        const studentList = document.getElementById("studentList");
+        if (studentList) {
+          studentList.addEventListener("input", updateStudentListStatus);
+          updateStudentListStatus();
+        }
+        refreshTeacherPreview();
+      }
+
+
+      function getTaskIdFromUrl() {
+        const params = new URLSearchParams(window.location.search);
+        return params.get("taskId") || params.get("taskid") || params.get("task") || params.get("task_code") || "";
+      }
+
+      function showTaskGateError(message) {
+        getElement("teacherApp").classList.add("hidden");
+        getElement("studentApp").classList.remove("hidden");
+        getElement("studentGame").innerHTML = "";
+        const gate = getElement("studentTaskGate");
+        gate.classList.remove("hidden");
+        gate.innerHTML = `<h2>${escapeHtml(GAME_NAME)}</h2><div class="gate-error">${escapeHtml(message)}</div>`;
+      }
+
+      function setupTaskGate(task) {
+        const gate = getElement("studentTaskGate");
+        gate.classList.remove("hidden");
+        const state = Platform.getTaskState(task);
+        const deadline = task.expires_at ? Platform.formatDeadline(task.expires_at, "en-GB") : "None";
+        getElement("studentTaskInfo").innerHTML =
+          '<div class="platform-task-info-grid">' +
+          '<div class="platform-task-info-row"><strong>Task:</strong> ' + escapeHtml(task.task_title || task.game_name || GAME_NAME) + '</div>' +
+          '<div class="platform-task-info-row"><strong>Task ID:</strong> ' + escapeHtml(task.task_code || "") + '</div>' +
+          '<div class="platform-task-info-row"><strong>Status:</strong> <span class="platform-status-pill ' + state.code + '">' + state.label + '</span></div>' +
+          '<div class="platform-task-info-row"><strong>Deadline:</strong> ' + escapeHtml(deadline) + '</div>' +
+          '</div>';
+
+        const classData = Array.isArray(task.class_data) ? task.class_data : [];
+        const identity = getElement("studentIdentityGrid");
+        const classSelect = getElement("studentClassSelect");
+        const nameSelect = getElement("studentNameSelect");
+        selectedClassName = "";
+        selectedStudentName = "";
+
+        if (!classData.length) {
+          identity.style.display = "none";
+        } else {
+          identity.style.display = "grid";
+          classSelect.innerHTML = '<option value="">Select your class</option>' +
+            classData.map(row => '<option value="' + escapeHtml(String(row.className || "")) + '">' + escapeHtml(String(row.className || "")) + '</option>').join("");
+          nameSelect.innerHTML = '<option value="">Select your class first</option>';
+          classSelect.onchange = function () {
+            selectedClassName = classSelect.value;
+            selectedStudentName = "";
+            const found = classData.find(row => String(row.className || "") === selectedClassName);
+            nameSelect.innerHTML = '<option value="">Select your name</option>' +
+              (found && Array.isArray(found.students) ? found.students : []).map(name =>
+                '<option value="' + escapeHtml(String(name)) + '">' + escapeHtml(String(name)) + '</option>'
+              ).join("");
+          };
+          nameSelect.onchange = function () { selectedStudentName = nameSelect.value; };
+        }
+        getElement("studentGateMessage").textContent = "";
+      }
+
+      async function startTaskActivity() {
+        const message = getElement("studentGateMessage");
+        message.textContent = "";
+        const classData = currentTask && Array.isArray(currentTask.class_data) ? currentTask.class_data : [];
+
+        if (classData.length) {
+          selectedClassName = getElement("studentClassSelect").value.trim();
+          selectedStudentName = getElement("studentNameSelect").value.trim();
+          if (!selectedClassName || !selectedStudentName) {
+            message.textContent = "Please select your class and name.";
+            return;
+          }
+        }
+
+        try {
+          const fresh = await Platform.loadTask(currentTask.task_code);
+          if (fresh) currentTask = fresh;
+          const state = Platform.getTaskState(currentTask);
+          if (!state.canPlay) {
+            showTaskGateError(state.code === "closed" ? "This task has been closed by the teacher." : "This task has expired.");
+            return;
+          }
+        } catch (error) {
+          console.error(error);
+          message.textContent = "Could not verify the task. Please try again.";
+          return;
+        }
+
+        getElement("studentTaskGate").classList.add("hidden");
+        taskResultSubmitted = false;
+        taskResultSaving = false;
+        initStudentMode(pendingTaskConfig);
+      }
+
+      async function loadPlatformTask(taskCode) {
+        getElement("teacherApp").classList.add("hidden");
+        getElement("studentApp").classList.remove("hidden");
+        if (!ensurePlatformReady()) {
+          showTaskGateError("Task system is not available.");
+          return;
+        }
+
+        try {
+          const task = await Platform.loadTask(taskCode);
+          if (!task) throw new Error("Task not found.");
+          currentTask = task;
+          isTaskMode = true;
+
+          const state = Platform.getTaskState(task);
+          if (!state.canPlay) {
+            showTaskGateError(state.code === "closed" ? "This task has been closed by the teacher." : "This task has expired.");
+            return;
+          }
+
+          const config = task.settings && task.settings.matchingConfig;
+          if (!config || !Array.isArray(config.rows) || !config.rows.length) {
+            throw new Error("This task does not contain matching-game settings.");
+          }
+          pendingTaskConfig = config;
+          activeStudentConfig = config;
+          setupTaskGate(task);
+          document.title = GAME_NAME;
+        } catch (error) {
+          console.error(error);
+          showTaskGateError("Task loading failed. Please check the original task link.");
+        }
+      }
+
+      async function submitMatchingResult(game) {
+        if (!isTaskMode || !currentTask || taskResultSubmitted || taskResultSaving) return;
+        taskResultSaving = true;
+
+        const totalMatches = game.rows.length * game.spec.cards.length;
+        const accuracy = Math.round(totalMatches / Math.max(1, totalMatches + game.wrongAttempts) * 100);
+        const durationSeconds = Math.max(1, Math.round((game.completedDurationMs || (Date.now() - game.startedAt)) / 1000));
+        const status = game.container.querySelector('[data-role="platform-status"]');
+        if (status) {
+          status.textContent = "Saving result…";
+          status.className = "platform-submit-status";
+        }
+
+        try {
+          await Platform.submitBestResult({
+            task: currentTask,
+            gameKey: GAME_KEY,
+            className: selectedClassName || "",
+            studentName: selectedStudentName || "",
+            score: 100,
+            accuracy,
+            durationSeconds,
+            resultData: {
+              mode: game.mode,
+              modeLabel: getModeLabel(game.mode),
+              itemCount: game.rows.length,
+              totalMatches,
+              wrongAttempts: game.wrongAttempts,
+              correctMatches: game.correctMatches,
+              title: game.title,
+              appVersion: APP_VERSION
+            }
+          });
+          taskResultSubmitted = true;
+          if (status) {
+            status.textContent = "✓ Result saved";
+            status.className = "platform-submit-status success";
+          }
+        } catch (error) {
+          console.error("Result submit failed:", error);
+          if (status) {
+            status.textContent = "Result could not be saved. Please refresh and try again.";
+            status.className = "platform-submit-status error";
+          }
+        } finally {
+          taskResultSaving = false;
+        }
+      }
+
+      function downloadCertificate(game) {
+        if (!game || !game.completed || game.isTeacherPreview) return;
+
+        const canvas = document.createElement("canvas");
+        canvas.width = 1600;
+        canvas.height = 1100;
+        const ctx = canvas.getContext("2d");
+
+        const grad = ctx.createLinearGradient(0, 0, 1600, 1100);
+        grad.addColorStop(0, "#f4fbf5");
+        grad.addColorStop(.5, "#ffffff");
+        grad.addColorStop(1, "#f3f8ff");
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 1600, 1100);
+
+        ctx.strokeStyle = "#4f9d69";
+        ctx.lineWidth = 12;
+        ctx.strokeRect(42, 42, 1516, 1016);
+        ctx.strokeStyle = "#fb8a3a";
+        ctx.lineWidth = 4;
+        ctx.strokeRect(66, 66, 1468, 968);
+        ctx.textAlign = "center";
+
+        ctx.fillStyle = "#6b7785";
+        ctx.font = "700 30px Arial, sans-serif";
+        ctx.fillText("TEACHER LIU'S CHINESE LEARNING STUDIO", 800, 150);
+
+        ctx.fillStyle = "#2f7d55";
+        ctx.font = "700 72px Georgia, serif";
+        ctx.fillText("CERTIFICATE OF COMPLETION", 800, 285);
+
+        ctx.fillStyle = "#6b7785";
+        ctx.font = "32px Arial, sans-serif";
+        ctx.fillText("This certificate confirms the successful completion of", 800, 390);
+
+        ctx.fillStyle = "#2f6e91";
+        ctx.font = "700 54px Arial, sans-serif";
+        ctx.fillText("ONLINE CHINESE MATCHING CHALLENGE", 800, 510);
+
+        ctx.strokeStyle = "#d9ead9";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(360, 560);
+        ctx.lineTo(1240, 560);
+        ctx.stroke();
+
+        ctx.fillStyle = "#274536";
+        ctx.font = "30px Arial, sans-serif";
+        ctx.fillText("Mode: " + getModeLabel(game.mode), 800, 655);
+
+        const completedDate = new Date().toLocaleDateString("en-GB", {
+          day: "2-digit", month: "long", year: "numeric"
+        });
+        ctx.fillStyle = "#6b7785";
+        ctx.font = "27px Arial, sans-serif";
+        ctx.fillText("Completed on " + completedDate, 800, 745);
+        if (currentTask && currentTask.task_code) {
+          ctx.fillText("Task ID: " + currentTask.task_code, 800, 795);
+        }
+
+        ctx.fillStyle = "#fb8a3a";
+        ctx.beginPath();
+        ctx.arc(800, 900, 50, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "700 50px Arial, sans-serif";
+        ctx.fillText("★", 800, 918);
+
+        ctx.fillStyle = "#2f7d55";
+        ctx.font = "700 30px Arial, sans-serif";
+        ctx.fillText("Challenge Completed Successfully!", 800, 995);
+
+        const link = document.createElement("a");
+        link.download = "Online_Chinese_Matching_Certificate.png";
+        link.href = canvas.toDataURL("image/png");
+        link.click();
+      }
+
+      async function init() {
+        buildVocabIndex();
+
+        const startTaskBtn = document.getElementById("studentStartTask");
+        if (startTaskBtn) startTaskBtn.addEventListener("click", startTaskActivity);
+
+        const taskId = getTaskIdFromUrl();
+        if (taskId) {
+          await loadPlatformTask(taskId);
+          return;
+        }
+
+        // Backward compatibility for previously shared ?play=1&c=... links.
+        const params = new URLSearchParams(window.location.search);
+        const isPlay = params.get("play") === "1";
+        const state = decodeState(params.get("c"));
+        if (isPlay && state && Array.isArray(state.rows)) {
+          isTaskMode = false;
+          initStudentMode(state);
+        } else {
+          initTeacherMode();
+        }
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", () => { init().catch(console.error); });
+      } else {
+        init().catch(console.error);
+      }
+    })();
+  </script>
+</body>
+</html>
